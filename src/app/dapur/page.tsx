@@ -73,12 +73,11 @@ function timeAgo(dateStr: string) {
   return `${hours} jam ${diffMins % 60} menit lalu`
 }
 
-export default function KitchenView() {
+export default function DapurPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [activeTab, setActiveTab] = useState<string>('active')
   const [isConnected, setIsConnected] = useState(false)
   const socketRef = useRef<Socket | null>(null)
-  const ordersLoadedRef = useRef(false)
 
   const loadOrders = useCallback(async () => {
     try {
@@ -92,7 +91,6 @@ export default function KitchenView() {
     }
   }, [])
 
-  // Socket connection + initial data load + polling fallback
   useEffect(() => {
     fetch('/api/seed', { method: 'POST' })
 
@@ -119,13 +117,12 @@ export default function KitchenView() {
       loadOrders()
     })
 
-    // Load orders on connect (event callback, not sync in effect body)
     const handleConnectAndLoad = () => {
       loadOrders()
     }
     socketInstance.on('connect', handleConnectAndLoad)
 
-    // Polling fallback: refresh every 10s when socket is offline
+    // Polling fallback
     const pollInterval = setInterval(() => {
       if (!socketInstance.connected) {
         loadOrders()
@@ -180,7 +177,7 @@ export default function KitchenView() {
           </div>
           <div className="flex items-center gap-2">
             <span className={cn('text-xs px-2 py-1 rounded-full', isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>
-              {isConnected ? 'Live' : 'Offline'}
+              {isConnected ? 'Live' : 'Polling'}
             </span>
             <Button variant="ghost" size="icon" onClick={loadOrders}>
               <RefreshCw className="w-4 h-4" />

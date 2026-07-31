@@ -3,25 +3,31 @@
 ---
 Task ID: 1
 Agent: Super Z (Main)
-Task: Build F&B table ordering system with real-time kitchen display
+Task: Build F&B table ordering system
 
 Work Log:
-- Initialized fullstack dev environment (Next.js 16 + TypeScript + Tailwind + shadcn/ui)
-- Designed and pushed Prisma schema: MenuItem, Order, OrderItem models
-- Created API routes: GET/POST /api/menu, GET/POST /api/orders, PATCH /api/orders/[id]/status, POST /api/seed
-- Built WebSocket mini-service (port 3003) for real-time order notifications between customer and kitchen
-- Built CustomerView component: menu grid, category filters, cart with sheet drawer, order tracking, localStorage persistence
-- Built KitchenView component: order cards with status progression, stats bar, active/history tabs, polling fallback
-- Main page.tsx with floating bottom mode switcher (Pelanggan / Dapur)
-- Seeded 15 Indonesian menu items across 4 categories
-- Fixed ESLint errors (react-hooks/set-state-in-effect), accessibility (SheetDescription), cart persistence (localStorage)
-- Added polling fallback (10s interval) for kitchen when WebSocket is offline
-- Browser verified: full order lifecycle works (add to cart → submit → kitchen receives → status progression)
+- Initialized fullstack dev environment
+- Built Prisma schema: MenuItem, Order, OrderItem
+- Created API routes: /api/menu, /api/orders, /api/orders/[id]/status, /api/seed
+- Built WebSocket mini-service (port 3003) for real-time notifications
+- Seeded 15 Indonesian menu items
+
+---
+Task ID: 2
+Agent: Super Z (Main)
+Task: Restructure into separate routes
+
+Work Log:
+- Created `/pelanggan/meja/[number]` route — customer ordering page with table number from URL
+- Created `/dapur` route — kitchen order management dashboard
+- Updated `/` as landing page with table number input + link to kitchen
+- Customer page: no mode switcher, table number from URL param, order success banner
+- Kitchen page: standalone, no customer elements, stats + order cards
+- Removed old single-page components (CustomerView, KitchenView, socket.ts)
+- Browser verified: landing → /pelanggan/meja/1 → order → /dapur shows orders
 
 Stage Summary:
-- Full F&B ordering system operational at localhost:3000
-- Two modes: Customer (menu browsing, cart, order) and Kitchen (order management, status flow)
-- Real-time via Socket.IO (works in production through Caddy XTransformPort proxy)
-- Polling fallback ensures kitchen gets updates even without WebSocket
-- Cart persists in localStorage across mode switches
-- Database: SQLite with Prisma ORM, 15 seeded menu items
+- 3 routes: `/` (landing), `/pelanggan/meja/N` (customer), `/dapur` (kitchen)
+- Cart persisted per table in localStorage
+- WebSocket real-time + 10s polling fallback for kitchen
+- Full order lifecycle tested end-to-end

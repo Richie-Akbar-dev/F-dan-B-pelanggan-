@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, use } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -80,26 +80,23 @@ const emojiMap: Record<string, string> = {
   Dessert: '🍮',
 }
 
-export default function CustomerView() {
+export default function CustomerPage({ params }: { params: Promise<{ number: string }> }) {
+  const { number: tableParam } = use(params)
+  const tableNumber = parseInt(tableParam) || 1
+
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [cart, setCart] = useState<CartItem[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('resto-cart')
+        const saved = localStorage.getItem(`resto-cart-${tableNumber}`)
         return saved ? JSON.parse(saved) : []
       } catch { /* ignore */ }
     }
     return []
   })
-  const [tableNumber, setTableNumber] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('resto-table') || '1'
-    }
-    return '1'
-  })
   const [customerName, setCustomerName] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('resto-customer-name') || ''
+      return localStorage.getItem(`resto-customer-name-${tableNumber}`) || ''
     }
     return ''
   })
@@ -109,20 +106,17 @@ export default function CustomerView() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [itemNotes, setItemNotes] = useState<Record<string, string>>({})
   const [cartOpen, setCartOpen] = useState(false)
+  const [orderSuccess, setOrderSuccess] = useState(false)
   const socketRef = useRef<Socket | null>(null)
 
-  // Persist cart to localStorage
+  // Persist cart per table
   useEffect(() => {
-    localStorage.setItem('resto-cart', JSON.stringify(cart))
-  }, [cart])
+    localStorage.setItem(`resto-cart-${tableNumber}`, JSON.stringify(cart))
+  }, [cart, tableNumber])
 
   useEffect(() => {
-    localStorage.setItem('resto-table', tableNumber)
-  }, [tableNumber])
-
-  useEffect(() => {
-    localStorage.setItem('resto-customer-name', customerName)
-  }, [customerName])
+    localStorage.setItem(`resto-customer-name-${tableNumber}`, customerName)
+  }, [customerName, tableNumber])
 
   const fetchMenu = useCallback(async () => {
     try {
@@ -138,13 +132,11 @@ export default function CustomerView() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const table = parseInt(tableNumber)
-      if (isNaN(table)) return
       const res = await fetch('/api/orders')
       if (res.ok) {
         const allOrders = await res.json()
         const tableOrders = allOrders.filter(
-          (o: ActiveOrder) => o.tableNumber === table && ['pending', 'preparing', 'ready'].includes(o.status)
+          (o: ActiveOrder) => o.tableNumber === tableNumber && ['pending', 'preparing', 'ready'].includes(o.status)
         )
         setActiveOrders(tableOrders)
       }
@@ -158,9 +150,6 @@ export default function CustomerView() {
     fetch('/api/seed', { method: 'POST' })
     fetchMenu()
 
-    const table = parseInt(tableNumber)
-    if (isNaN(table)) return
-
     const socketInstance = io('/?XTransformPort=3003', {
       transports: ['websocket', 'polling'],
       forceNew: true,
@@ -170,14 +159,14 @@ export default function CustomerView() {
     socketRef.current = socketInstance
 
     const handleConnect = () => {
-      socketInstance.emit('customer-join', table)
+      socketInstance.emit('customer-join', tableNumber)
       fetchOrders()
     }
 
     socketInstance.on('connect', handleConnect)
 
     socketInstance.on('order-status', (data: { orderId: string; status: string; tableNumber: number }) => {
-      if (data.tableNumber === table) {
+      if (data.tableNumber === tableNumber) {
         fetchOrders()
       }
     })
@@ -203,6 +192,7 @@ export default function CustomerView() {
       }
       return [...prev, { menuItem: item, quantity: 1, notes: '' }]
     })
+    setOrderSuccess(false)
   }
 
   const updateQuantity = (menuItemId: string, delta: number) => {
@@ -233,7 +223,7 @@ export default function CustomerView() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tableNumber: parseInt(tableNumber),
+          tableNumber,
           customerName: customerName || null,
           notes: orderNotes || null,
           items,
@@ -247,6 +237,7 @@ export default function CustomerView() {
         setItemNotes({})
         setOrderNotes('')
         setCartOpen(false)
+        setOrderSuccess(true)
         fetchOrders()
       }
     } catch (e) {
@@ -257,29 +248,22 @@ export default function CustomerView() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen bg-stone-50 flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white border-b border-stone-200 shadow-sm">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <UtensilsCrossed className="w-6 h-6 text-orange-600" />
-            <h1 className="text-lg font-bold text-stone-800">RestoOrder</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-stone-500">Meja</label>
-            <Input
-              type="number"
-              min="1"
-              value={tableNumber}
-              onChange={(e) => setTableNumber(e.target.value)}
-              className="w-16 h-8 text-center text-sm"
-            />
+            <div>
+              <h1 className="text-lg font-bold text-stone-800 leading-tight">RestoOrder</h1>
+              <p className="text-xs text-stone-400">Meja {tableNumber}</p>
+            </div>
           </div>
           <Sheet open={cartOpen} onOpenChange={setCartOpen}>
             <SheetTrigger asChild>
               <Button variant="outline" size="sm" className="relative gap-1.5">
                 <ShoppingCart className="w-4 h-4" />
-                <span>Keranjang</span>
+                <span className="hidden sm:inline">Keranjang</span>
                 {totalItems > 0 && (
                   <Badge className="absolute -top-2 -right-2 bg-orange-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center p-0">
                     {totalItems}
@@ -308,26 +292,14 @@ export default function CustomerView() {
                               <div className="flex justify-between items-start gap-2">
                                 <div className="flex-1 min-w-0">
                                   <p className="font-medium text-sm truncate">{item.menuItem.name}</p>
-                                  <p className="text-xs text-stone-500">
-                                    {formatRupiah(item.menuItem.price)}
-                                  </p>
+                                  <p className="text-xs text-stone-500">{formatRupiah(item.menuItem.price)}</p>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    onClick={() => updateQuantity(item.menuItem.id, -1)}
-                                  >
+                                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.menuItem.id, -1)}>
                                     <Minus className="w-3 h-3" />
                                   </Button>
                                   <span className="w-8 text-center font-medium text-sm">{item.quantity}</span>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    onClick={() => updateQuantity(item.menuItem.id, 1)}
-                                  >
+                                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.menuItem.id, 1)}>
                                     <Plus className="w-3 h-3" />
                                   </Button>
                                 </div>
@@ -335,9 +307,7 @@ export default function CustomerView() {
                               <Input
                                 placeholder="Catatan item..."
                                 value={itemNotes[item.menuItem.id] || ''}
-                                onChange={(e) =>
-                                  setItemNotes((prev) => ({ ...prev, [item.menuItem.id]: e.target.value }))
-                                }
+                                onChange={(e) => setItemNotes((prev) => ({ ...prev, [item.menuItem.id]: e.target.value }))}
                                 className="mt-2 h-8 text-xs"
                               />
                               <p className="text-right text-sm font-semibold text-orange-700 mt-1">
@@ -382,9 +352,20 @@ export default function CustomerView() {
         </div>
       </header>
 
+      {/* Order Success Banner */}
+      {orderSuccess && (
+        <div className="max-w-lg mx-auto w-full px-4 pt-3">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2 text-green-700">
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+            <p className="text-sm">Pesanan berhasil dikirim ke dapur! Silakan tunggu.</p>
+          </div>
+        </div>
+      )}
+
       {/* Active Orders Tracking */}
       {activeOrders.length > 0 && (
-        <div className="max-w-lg mx-auto px-4 pt-3">
+        <div className="max-w-lg mx-auto w-full px-4 pt-3">
+          <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Pesanan Aktif</p>
           <div className="space-y-2">
             {activeOrders.map((order) => {
               const cfg = statusConfig[order.status] || statusConfig.pending
@@ -414,7 +395,7 @@ export default function CustomerView() {
       )}
 
       {/* Category Filter */}
-      <div className="max-w-lg mx-auto px-4 pt-4">
+      <div className="max-w-lg mx-auto w-full px-4 pt-4">
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
           {categories.map((cat) => {
             const cfg = categoryConfig[cat]
@@ -440,7 +421,7 @@ export default function CustomerView() {
       </div>
 
       {/* Menu Grid */}
-      <main className="max-w-lg mx-auto px-4 pb-24 pt-2">
+      <main className="max-w-lg mx-auto w-full px-4 pb-24 pt-2 flex-1">
         <div className="grid grid-cols-2 gap-3">
           {filteredItems.map((item) => {
             const cfg = categoryConfig[item.category]
