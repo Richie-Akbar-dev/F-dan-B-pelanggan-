@@ -52,3 +52,18 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Database
+/db/
+*.db
+*.db-journal
+
+# Download / generated assets
+/download/
+
+# Examples & tests
+/examples/
+/tests/
+
+# Worklog
+worklog.md
