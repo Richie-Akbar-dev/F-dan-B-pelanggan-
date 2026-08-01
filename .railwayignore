@@ -1,0 +1,12 @@
+node_modules
+.next
+db/
+*.log
+scripts/
+download/
+examples/
+mini-services/
+.zscripts/
+worklog.md
+.git
+.vscode
